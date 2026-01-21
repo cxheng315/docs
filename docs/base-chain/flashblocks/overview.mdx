@@ -1,0 +1,173 @@
+---
+title: Flashblocks Overview
+sidebarTitle: Overview
+description: Understand the sequencer architecture, block building algorithm, and integration options for Flashblocks on Base.
+---
+
+## What are Flashblocks?
+
+Flashblocks reduce effective block times on Base from 2 seconds to just **200 milliseconds**, making transactions feel instant. Built in collaboration with [Flashbots](https://www.flashbots.net/), Flashblocks stream sub-blocks during each 2-second window, providing sub-second preconfirmations.
+
+<Note>
+Flashblocks are always live on Base. All blocks are built by the Flashblocks builder. Apps can choose whether to consume preconfirmations or wait for standard 2-second block finality.
+</Note>
+
+### Key Concepts
+
+| Term | Definition |
+|------|------------|
+| **Flashblock** | A 200ms sub-block containing a portion of the full block's transactions |
+| **Preconfirmation** | An ultra-fast signal that a transaction will be included, before the full block is sealed |
+| **Full Block** | A series of 10 Flashblocks combined to form the complete 2-second block |
+
+There are **10 Flashblocks per block**. Each Flashblock (`flashblock_i`) can contain up to `i/10` of the full block's total gas budget. The Flashblocks are combined to recreate the complete block.
+
+---
+
+## Architecture
+
+### Before Flashblocks
+
+Base operates a high-availability sequencer system with five sequencer instances:
+
+| Component | Role |
+|-----------|------|
+| **op-node** | Standard OP Stack consensus layer (CL) |
+| **op-geth** | Standard OP Stack execution layer (EL) |
+| **op-conductor** | High availability controller with Raft consensus for leader election |
+
+One sequencer instance acts as the **leader**, responsible for building blocks and propagating them via P2P. The remaining four act as **followers** that sync the chain. Leadership transfers if the current leader stops producing blocks.
+
+### With Flashblocks
+
+Flashblocks introduce several new infrastructure components:
+
+| Component | Purpose | What It Unlocks |
+|-----------|---------|-----------------|
+| **rollup-boost** | CL↔EL Engine API proxy | Enables sharing Flashblocks with the EL without modifying the CL. Provides a stable seam for future block-building evolutions (multi-builder, etc.) |
+| **op-rbuilder** | Out-of-protocol builder at 200ms cadence | Produces the sub-second Flashblocks, decoupled from the EL. Enables pluggable builder mechanisms |
+| **websocket-proxy** | Flashblocks stream fan-out | Broadcast layer so many consumers can read the stream without overwhelming the builder |
+| **node-reth** | RPC surface exposing preconfirmations | Converts streamed Flashblocks into familiar RPCs so apps and wallets can consume preconfirmation state |
+
+Both [rollup-boost](https://github.com/flashbots/rollup-boost) and [op-rbuilder](https://github.com/flashbots/op-rbuilder) are built and maintained by Flashbots, while Base maintains the websocket-proxy and node-reth components.
+
+---
+
+## Transaction Lifecycle
+
+When you send a transaction to Base, here's what happens:
+
+### 1. Submission
+```
+User → DNS (mainnet.base.org) → Load Balancer → Proxyd → Mempool
+```
+
+The transaction reaches the private mempool and is inserted into the txpool as pending.
+
+### 2. Distribution
+The mempool maintains P2P connections with execution layers (op-geth, op-rbuilder), ensuring all pending transactions are synced for block building.
+
+### 3. Block Building
+During each 200ms block building loop, op-rbuilder selects transactions based on:
+
+1. **Transaction fee** — transactions are ordered by fee (highest first)
+2. **Gas limit and remaining capacity** — each Flashblock `j` can use up to `j/10` of the total block gas limit
+
+### 4. Block Building Algorithm
+
+The builder follows this process for each 2-second block:
+
+```
+FOR each flashblock j FROM 0 TO 10:
+    1. Wait until next 200ms window
+    2. Calculate available gas: (j / 10) × total_block_gas_limit
+    3. Sort pending transactions by fee (descending)
+    4. Select top transactions that fit within available gas
+    5. Execute transactions and update state
+    6. Stream flashblock to websocket-proxy
+```
+
+<Note>
+**Index 0** contains only system transactions and doesn't use any gas limit. **Indexes 1-10** are the actual Flashblocks that pull pending transactions from the txpool.
+</Note>
+
+### 5. Preconfirmation Delivery
+Once a transaction is included in a Flashblock, it's streamed to the websocket-proxy, which RPC nodes listen to. When you call a Flashblocks-aware RPC method (like `eth_getTransactionReceipt`), the node retrieves the preconfirmed data from its cache.
+
+---
+
+## Gas Allocation
+
+Each Flashblock has an incrementally increasing gas budget:
+
+| Flashblock | Available Gas |
+|------------|---------------|
+| 1 | 1/10 of block limit (~14M gas) |
+| 2 | 2/10 of block limit (~28M gas) |
+| 3 | 3/10 of block limit (~42M gas) |
+| ... | ... |
+| 10 | Full block limit (~140M gas) |
+
+**Implications for large transactions:**
+- Transactions with gas limits > 1/10 of block limit (currently ~14M gas) cannot fit in Flashblock 1
+- These transactions must wait for later Flashblocks with sufficient capacity
+- If your app creates large transactions, monitor for changes in inclusion latency
+
+---
+
+## Reliability
+
+### Reorg Rate
+
+Flashblocks reorgs on Base Mainnet are effectively **zero**. Base maintains a reorg rate below **0.01%**. 
+
+A reorg means a Flashblock was streamed as a preconfirmation but wasn't included in the final block. This is rare due to architectural improvements where rollup-boost stores Flashblocks in a `best_payload` variable and only returns the final payload on `get_payload`, preventing tail Flashblock reorgs.
+
+Check current metrics at [base.org/stats](https://base.org/stats).
+
+### Builder Failover
+
+The op-conductor verifies builder health by checking if the builder remains synced with the tip of the chain. If a builder falls behind, leadership transfers automatically. This ensures high availability—Flashblocks won't experience extended outages due to unhealthy builders.
+
+### Fallback Behavior
+
+If an extreme circumstance makes running Flashblocks unsafe, preconfirmations are disabled network-wide and confirmation falls back to standard 2-second blocks. The sequencer continues operating normally.
+
+---
+
+## Performance Characteristics
+
+| Metric | Value |
+|--------|-------|
+| Flashblock build time (P50) | ~10ms |
+| Preconfirmation latency | ~200ms |
+| Full block time | 2 seconds |
+| Flashblocks per block | 10 |
+| Reorg rate | < 0.01% |
+
+---
+
+## Integration Paths
+
+Choose the integration method that fits your use case:
+
+| Use Case | Recommended Approach | Documentation |
+|----------|---------------------|---------------|
+| **Apps needing instant UX** | Flashblocks-aware RPC with `pending` tag | [App Integration](/base-chain/flashblocks/apps) |
+| **Traders & low-latency apps** | WebSocket stream | [WebSocket API](/base-chain/flashblocks/node-providers#websocket-api) |
+| **Infrastructure providers** | Host Flashblocks-aware RPC nodes | [Node Providers](/base-chain/flashblocks/node-providers) |
+| **Standard apps** | Continue using regular RPCs | No changes needed |
+
+<Tip>
+Applications should avoid hard dependencies on the WebSocket stream. RPCs provide stable behavior and automatic failover to regular blocks if Flashblocks go down.
+</Tip>
+
+---
+
+## Further Reading
+
+- [App Integration Guide](/base-chain/flashblocks/apps) — RPC methods, code examples, and library integrations
+- [Node Provider Guide](/base-chain/flashblocks/node-providers) — Run your own Flashblocks-aware RPC node
+- [FAQ](/base-chain/flashblocks/docs) — Common questions about Flashblocks
+- [Block Building](/base-chain/network-information/block-building) — Detailed block ordering configuration
+- [Flashblocks Deep Dive](https://blog.base.dev/flashblocks-deep-dive) — Engineering blog post with implementation details

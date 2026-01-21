@@ -1,76 +1,104 @@
 ---
-title: "Flashblocks FAQ"
+title: Flashblocks FAQ
+sidebarTitle: FAQ
+description: Frequently asked questions about Flashblocks, including block building, WebSocket data, RPC usage, and node setup.
 ---
 
-## Flashblocks Block Building
+<Info>
+For a comprehensive introduction to how Flashblocks work, see the [Flashblocks Overview](/base-chain/flashblocks/overview).
+</Info>
 
-### Are flashblocks optional?
+## Block Building
 
-All Base blocks are built by the Flashblocks builder, meaning Flashblocks are always live. However, apps may choose not to rely on preconfirmations and are welcome to continue to have an integration that does not rely on Flashblocks.
+### Are Flashblocks optional?
 
-### Is there any difference in tx inclusion for flashblocks vs. 2s block?
+All Base blocks are built by the Flashblocks builder, meaning **Flashblocks are always live**. However, apps may choose not to rely on preconfirmations and can continue using standard RPCs without any Flashblocks integration.
 
-No particular differences except more frequent timing, both still pick txs based on tx fees ordering. You can read more about it here (https://docs.base.org/base-chain/network-information/block-building#flashblocks).
+### Is there any difference in transaction inclusion for Flashblocks vs. 2-second blocks?
 
-### Is it possible for the sequencer to stop publishing flashblocks, if so what happens?
+No significant differences—both order transactions by fee. The main difference is timing: Flashblocks occur every 200ms instead of every 2 seconds. See [Block Building](/base-chain/network-information/block-building#flashblocks) for details.
 
-The sequencer will not stop publishing flashblocks, unless an extreme circumstance arises, that causes running flashblocks to be unsafe. If this happens, the preconfirmation is disabled across the network and confirmation falls back to 2s blocks.
+### Can the sequencer stop publishing Flashblocks?
 
-### Why is my tx having trouble getting included now?
+The sequencer will not stop publishing Flashblocks unless an extreme circumstance makes running them unsafe. If this happens, preconfirmations are disabled network-wide and confirmations fall back to standard 2-second blocks. The sequencer continues operating normally.
 
-It's possible that larger txs (> 15m gas limit) will have a harder time to land. This is due to how the builder allocates gas, it incrementally adds 1/10th of the total block gas limit to each flashblock. You can read more about it here (https://docs.base.org/base-chain/network-information/block-building#flashblocks).
+### Why is my transaction having trouble getting included?
 
-### How do I ensure my TX is in the first flashblock?
+Transactions with large gas limits (> 14M gas) may have longer inclusion times. This is because the builder allocates gas incrementally—each Flashblock `j` can only use `j/10` of the total block gas limit. Large transactions must wait for later Flashblocks with sufficient capacity.
 
-Unfortunately there's no way to guarantee which flashblock a transaction lands in, similar to how it cannot be guaranteed that a transaction lands in a specific block. To ensure quick inclusion, you may set a higher priority fee on your transaction.
+See [Gas Allocation](/base-chain/flashblocks/overview#gas-allocation) for the full breakdown.
 
-### How frequently do flashblocks reorg happen?
+### How do I ensure my transaction is in the first Flashblock?
 
-Flashblocks reorgs on Base Mainnet is currently effectively zero, with only rare exceptions. We are committed to maintaining a reorg rate below 0.01% going forward. You can check the latest metrics in the Flashblocks section at https://base.org/stats
+There's no way to guarantee which Flashblock a transaction lands in, similar to how you can't guarantee a specific block. To improve chances of quick inclusion:
 
-### What does it mean when a flashblock is reorged?
+- Set a higher priority fee
+- Keep gas limits below 14M (1/10 of block limit) to be eligible for Flashblock 1
 
-It means when a flashblock was streamed out as preconfirmation but it didn't end up getting included in that particular block. Currently applications building with flashblocks should have this expectation in mind but we are actively working on reducing reorgs to 0.
+### How frequently do Flashblock reorgs happen?
 
-## Flashblocks Websockets
+Flashblock reorgs on Base Mainnet are effectively **zero**, with only rare exceptions. Base maintains a reorg rate below **0.01%**. Check current metrics at [base.org/stats](https://base.org/stats).
 
-### Why are there 11 flashblocks?
+### What does it mean when a Flashblock is reorged?
 
-Index 0 only contains the system txs but doesn't use any gas limit, thus index 1-10 are the actual flashblocks that take pending txs from the txpool to build blocks.
+A reorg means a Flashblock was streamed as a preconfirmation but wasn't included in the final block. This is rare due to architectural improvements in rollup-boost that prevent tail Flashblock reorgs. Apps should handle this possibility gracefully, but occurrences are minimal.
 
-### Why sometimes there are less than 10 flashblocks?
+---
 
-This is expected for now, it happens when the previous block takes too long to build the system then compensates by having less time to build the next block, resulting in less flashblocks.
+## WebSocket
 
-### What encoding format is the data in transactions?
+### Why are there 11 Flashblocks?
 
-Those data are RLP encoded.
+Index 0 contains only system transactions and doesn't use any gas limit. Indexes 1-10 are the actual Flashblocks that pull pending transactions from the txpool.
 
-### Why am I getting rate limited?
+### Why are there sometimes fewer than 10 Flashblocks?
 
-We currently set the maximum number of connections to our public websocket. We are aiming to have websocket supported on the RPC nodes soon, thus will soon encourage everyone to connect to the RPC for websocket stream rather than connecting to the websocket proxy directly.
+This is expected. When the previous block takes longer to build, the system compensates by allocating less time to the next block, resulting in fewer Flashblocks.
+
+### What encoding format is the transaction data in?
+
+Transaction data is RLP encoded.
+
+### Why am I getting rate limited on the WebSocket?
+
+The public WebSocket has a maximum connection limit. For production use, we recommend:
+
+1. Running your own [Flashblocks-aware RPC node](/base-chain/flashblocks/node-providers)
+2. Using a third-party node provider with Flashblocks support
+
+---
 
 ## RPC
 
 ### Why am I getting rate limited using mainnet-preconf.base.org?
 
-We set explicit rate limiting on the public endpoint. In order to not get rate limited, we strongly encourage utilizing third party node providers, most of which already support flashblocks aware RPCs on Base today.
+The public endpoint has explicit rate limiting. For production use:
 
-### What RPC methods do you currently support that have flashblocks enabled?
+- Use a third-party node provider with Flashblocks support (Alchemy, Infura, QuickNode, dRPC)
+- Run your own [Flashblocks-aware RPC node](/base-chain/flashblocks/node-providers)
 
-Currently the ones that have flashblocks enabled are:
-- eth_getBlockByNumber (with pending tag)
-- eth_getBalance (with pending tag)
-- eth_getTransactionReceipt
-- eth_getTransactionByHash (with pending tag)
-- eth_getTransactionCount (with pending tag)
-- eth_call (with pending tag)
-- eth_simulateV1 (with pending tag)
-- eth_estimateGas (with pending tag)
-- eth_getLogs (with pending tag)
+### What RPC methods support Flashblocks?
 
-## Node
+The following methods are Flashblocks-enabled:
 
-### How can I set up a RPC node that's flashblocks-aware?
+| Method | Usage |
+|--------|-------|
+| `eth_getBlockByNumber` | Use `pending` tag |
+| `eth_getBalance` | Use `pending` tag |
+| `eth_getTransactionReceipt` | Returns preconfirmed receipts |
+| `eth_getTransactionByHash` | Use `pending` tag |
+| `eth_getTransactionCount` | Use `pending` tag |
+| `eth_call` | Use `pending` tag |
+| `eth_simulateV1` | Use `pending` tag |
+| `eth_estimateGas` | Use `pending` tag |
+| `eth_getLogs` | Use `pending` for `toBlock` |
 
-In order to set up a node that's flashblocks-aware you must use the reth binary that we provide under https://github.com/base/node/tree/main/reth.
+See [App Integration](/base-chain/flashblocks/apps#rpc-api) for full examples.
+
+---
+
+## Node Setup
+
+### How do I set up a Flashblocks-aware RPC node?
+
+Use the Reth binary from the [Base node repository](https://github.com/base/node/tree/main/reth). See the [Node Providers guide](/base-chain/flashblocks/node-providers) for complete setup instructions.

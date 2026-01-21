@@ -1,41 +1,68 @@
 ---
-title: How to host Flashblocks-aware RPC nodes
+title: Run Flashblocks-aware RPC Nodes
 sidebarTitle: Node Providers
+description: Host your own Flashblocks-aware RPC node to provide preconfirmation data to your applications with full control over rate limits and latency.
 ---
+
+This guide covers how to run a Flashblocks-aware RPC node using node-reth, which converts streamed Flashblocks into familiar JSON-RPC methods.
+
+<Info>
+For background on how Flashblocks work and the node-reth component, see the [Flashblocks Overview](/base-chain/flashblocks/overview#architecture).
+</Info>
 
 ## Quick Start
 
-1. **Prerequisites**:
-  - Docker and Docker Compose
-  - Minimum hardware requirements (see [node README](https://github.com/base/node?tab=readme-ov-file#hardware-requirements))
-  - Access to a Flashblocks websocket endpoint, we provide public endpoints in the env files in the repo
+### Prerequisites
 
-2. **Set Up Environment**:
+- Docker and Docker Compose
+- Minimum hardware requirements (see [node README](https://github.com/base/node?tab=readme-ov-file#hardware-requirements))
+- Access to a Flashblocks WebSocket endpoint (public endpoints provided in the repo)
 
-  ```sh
-  # Clone the repository
-  git clone https://github.com/base/node.git
-  cd node
-  ```
+### Clone and Configure
 
-3. **Start the Node with Flashblocks Support**:
+```sh
+# Clone the repository
+git clone https://github.com/base/node.git
+cd node
+```
 
-  ```sh
-  NODE_TYPE=base CLIENT=reth RETH_FB_WEBSOCKET_URL="wss://mainnet.flashblocks.base.org/ws" docker-compose up
-  ```
+### Start the Node
 
-## Configuration Options
+```sh
+NODE_TYPE=base CLIENT=reth RETH_FB_WEBSOCKET_URL="wss://mainnet.flashblocks.base.org/ws" docker-compose up
+```
 
-- Node Type: Use `NODE_TYPE=base` to enable base reth node with Flashblocks functionality
-- Network: Use `NETWORK_ENV=.env.mainnet` for mainnet or `NETWORK_ENV=.env.sepolia` for testnet
+<Note>
+The node-reth binary listens to the Flashblocks WebSocket stream and caches preconfirmation data. When Flashblocks-aware RPC methods are called, it returns data from this cache.
+</Note>
 
-Ensure the RETH_FB_WEBSOCKET_URL is set. Base offers the following public rate limited RPC's:
-- For Mainnet: `RETH_FB_WEBSOCKET_URL=wss://mainnet.flashblocks.base.org/ws`
-- For Sepolia: `RETH_FB_WEBSOCKET_URL=wss://sepolia.flashblocks.base.org/ws`
+---
 
-## Verifying Flashblocks Functionality
+## Configuration
 
-Test that your node is properly supporting Flashblocks by querying a pending block:
+| Variable | Description | Values |
+|----------|-------------|--------|
+| `NODE_TYPE` | Enables base reth node with Flashblocks | `base` |
+| `CLIENT` | Execution client | `reth` |
+| `NETWORK_ENV` | Network configuration file | `.env.mainnet` or `.env.sepolia` |
+| `RETH_FB_WEBSOCKET_URL` | Flashblocks WebSocket endpoint | See below |
+
+### WebSocket Endpoints
+
+| Network | URL |
+|---------|-----|
+| Mainnet | `wss://mainnet.flashblocks.base.org/ws` |
+| Sepolia | `wss://sepolia.flashblocks.base.org/ws` |
+
+<Warning>
+Public WebSocket endpoints are rate-limited. For production deployments with high traffic, consider connecting directly to your own WebSocket proxy or using infrastructure providers.
+</Warning>
+
+---
+
+## Verify Flashblocks Functionality
+
+Test that your node is properly serving Flashblocks by querying a pending block:
 
 ```sh
 curl -X POST \
@@ -43,24 +70,48 @@ curl -X POST \
   http://localhost:8545
 ```
 
+A successful response will include block data from the latest Flashblock. If Flashblocks are temporarily unavailable, the node falls back to returning the latest finalized block.
+
 ## Available RPC Methods
 
-Flashblocks-aware nodes provide all standard Ethereum JSON-RPC methods plus specialized Flashblocks endpoints. For more details, see the [Flashblocks RPC API documentation](/base-chain/flashblocks/apps#rpc-api).
+Your Flashblocks-aware node supports all standard Ethereum JSON-RPC methods, plus these Flashblocks-enabled endpoints:
+
+| Method | Flashblocks Usage |
+|--------|------------------|
+| `eth_getBlockByNumber` | Use `pending` tag |
+| `eth_getBalance` | Use `pending` tag |
+| `eth_getTransactionReceipt` | Returns preconfirmed receipts |
+| `eth_getTransactionByHash` | Use `pending` tag |
+| `eth_getTransactionCount` | Use `pending` tag |
+| `eth_call` | Use `pending` tag |
+| `eth_simulateV1` | Use `pending` tag |
+| `eth_estimateGas` | Use `pending` tag |
+| `eth_getLogs` | Use `pending` for `toBlock` |
+
+For code examples, see the [App Integration guide](/base-chain/flashblocks/apps#rpc-api).
+
+---
 
 
 ## WebSocket API
 
-The websocket API is intended to stream Flashblock data to nodes, so they can expose it via their RPC APIs. The endpoints are available at:
+The WebSocket API streams Flashblock data directly to nodes, enabling them to expose preconfirmations via their RPC APIs. This is the low-latency backbone for traders and infrastructure providers.
 
-   | Network            | URL                                   |
-   | :----------------- | :------------------------------------ |
-   | Mainnet            | wss://mainnet.flashblocks.base.org/ws |
-   | Sepolia            | wss://sepolia.flashblocks.base.org/ws |
+| Network | URL |
+|---------|-----|
+| Mainnet | `wss://mainnet.flashblocks.base.org/ws` |
+| Sepolia | `wss://sepolia.flashblocks.base.org/ws` |
 
+<Tip>
+Applications should avoid hard dependencies on the WebSocket stream. RPCs provide stable behavior and automatic failover to regular blocks if Flashblocks are unavailable.
+</Tip>
 
-#### Interpreting the data
+### Data Format
 
-To minimize the amount of data sent to nodes, each Flashblock only includes the diff data from the previous block. The initial Flashblock (when index is zero) includes the block properties (e.g. number, gas limit) and the subsequent Flashblocks only include the diff data (e.g. transactions that are present in that Flashblock).
+To minimize bandwidth, each Flashblock only includes **diff data** from the previous Flashblock:
+
+- **Index 0** (initial): Contains full block properties (number, gas limit, timestamp, etc.) plus the first diff
+- **Index 1-10** (subsequent): Contains only diff data (new transactions, updated state root, gas used)
 
 **Example Initial Response**
 ```
@@ -139,7 +190,12 @@ To minimize the amount of data sent to nodes, each Flashblock only includes the 
 }
 ```
 
+---
+
 ## Further Resources
 
-For detailed information about node setup, including hardware requirements and additional configuration options, refer to the [Reth node README](https://github.com/base/node/tree/main/reth#readme).
+- [Reth node README](https://github.com/base/node/tree/main/reth#readme) — Hardware requirements and configuration
+- [Flashblocks Overview](/base-chain/flashblocks/overview) — Architecture and how the system works
+- [App Integration](/base-chain/flashblocks/apps) — RPC examples and library integrations
+- [Flashblocks Deep Dive](https://blog.base.dev/flashblocks-deep-dive) — Engineering blog with implementation details
 
