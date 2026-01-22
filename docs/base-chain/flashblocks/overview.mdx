@@ -6,7 +6,9 @@ description: Understand the sequencer architecture, block building algorithm, an
 
 ## What are Flashblocks?
 
-Flashblocks reduce effective block times on Base from 2 seconds to just **200 milliseconds**, making transactions feel instant. Built in collaboration with [Flashbots](https://www.flashbots.net/), Flashblocks stream sub-blocks during each 2-second window, providing sub-second preconfirmations.
+Flashblocks introduce **200ms** incremental state updates to Base, significantly reducing perceived latency for users. 
+
+Built in collaboration with [Flashbots](https://www.flashbots.net/), this mechanism streams sub-blocks within the standard 2-second block interval, providing near-instant sequencer preconfirmations, allowing applications to reflect state changes long before the full block is gossiped to the rest of the network. 
 
 <Note>
 Flashblocks are always live on Base. All blocks are built by the Flashblocks builder. Apps can choose whether to consume preconfirmations or wait for standard 2-second block finality.

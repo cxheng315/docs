@@ -4,10 +4,6 @@ sidebarTitle: Apps
 description: Integrate Flashblocks into your app for 200ms transaction confirmations using RPC APIs and popular libraries like Wagmi and Viem.
 ---
 
-## Overview
-
-Flashblocks enable **200 millisecond** transaction confirmations on Base through preconfirmations—ultra-fast signals that arrive before the full 2-second block is sealed.
-
 <Info>
 New to Flashblocks? Start with the [Flashblocks Overview](/base-chain/flashblocks/overview) to understand the architecture and how transactions flow through the system.
 </Info>
@@ -22,6 +18,10 @@ There are two ways to integrate with Flashblocks:
 <Tip>
 For most apps, the RPC API is recommended. WebSocket is best for traders and infrastructure providers who need the absolute lowest latency.
 </Tip>
+
+<Warning>
+**Frontend developers using `eth_subscribe`**: With Flashblocks, subscriptions emit events every 200ms instead of every 2 seconds. If your UI performs heavy rendering on each event, consider throttling or debouncing updates to avoid jitter.
+</Warning>
 
 ### RPC API
 
@@ -312,38 +312,6 @@ const confirmTime = new Date();
 
 console.log(`Transaction included at: ${confirmTime.toISOString()}`);
 console.log(`Time difference: ${confirmTime - submissionTime}ms`);
-```
-
-#### [Ethers](https://github.com/ethers-io/ethers.js)
-
-```jsx
-  const providerA = new ethers.JsonRpcProvider(
-    "https://sepolia-preconf.base.org"
-  );
-
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, providerA);
-
-  try {
-    // Create a simple transaction (sending 0.001 ETH to a random address)
-    const tx = {
-      to: "<SOME ADDRESS>",
-      value: ethers.parseEther("0.0000001"),
-    };
-
-    // Submit transaction
-    const submissionTime = new Date();
-    const transaction = await wallet.sendTransaction(tx);
-
-    console.log(`Submitting transaction at: ${submissionTime.toISOString()}`);
-    console.log(`Transaction hash: ${transaction.hash}`);
-
-    await transaction.wait(0); // Make sure to set the confirmation count to 0
-
-    console.log("Transaction confirmed");
-    const confirmationTime = new Date();
-    console.log(`Transaction confirmed at: ${confirmationTime.toISOString()}`);
-    console.log(`Time difference: ${confirmationTime - submissionTime}ms`);
-  }
 ```
 
 You should see the confirmation time significantly lower than the standard RPC endpoint.
