@@ -111,8 +111,8 @@ Each Flashblock has an incrementally increasing gas budget:
 | 10 | Full block limit (~140M gas) |
 
 **Implications for large transactions:**
-- Transactions with gas limits > 1/10 of block limit (currently ~14M gas) cannot fit in Flashblock 1
-- These transactions must wait for later Flashblocks with sufficient capacity
+- Transactions with gas limits > 1/10 of block limit (currently ~18.75M gas) will never fit in a Flashblock
+- It's more common for larger transaction to wait until later Flashblocks with sufficient capacity
 - If your app creates large transactions, monitor for changes in inclusion latency
 
 ---
