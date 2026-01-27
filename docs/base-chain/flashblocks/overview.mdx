@@ -104,11 +104,11 @@ Each Flashblock has an incrementally increasing gas budget:
 
 | Flashblock | Available Gas |
 |------------|---------------|
-| 1 | 1/10 of block limit (~14M gas) |
-| 2 | 2/10 of block limit (~28M gas) |
-| 3 | 3/10 of block limit (~42M gas) |
+| 1 | 1/10 of block limit (~18.75M gas) |
+| 2 | 2/10 of block limit (~37.5M gas) |
+| 3 | 3/10 of block limit (~56.25M gas) |
 | ... | ... |
-| 10 | Full block limit (~140M gas) |
+| 10 | Full block limit (~187.5M gas) |
 
 **Implications for large transactions:**
 - Transactions with gas limits > 1/10 of block limit (currently ~18.75M gas) will never fit in a Flashblock
