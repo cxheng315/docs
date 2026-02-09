@@ -4,10 +4,10 @@ sidebarTitle: Node Providers
 description: Host your own Flashblocks-aware RPC node to provide preconfirmation data to your applications with full control over rate limits and latency.
 ---
 
-This guide covers how to run a Flashblocks-aware RPC node using node-reth, which converts streamed Flashblocks into familiar JSON-RPC methods.
+This guide covers how to run a Flashblocks-aware RPC node using [base](https://github.com/base/base), which converts streamed Flashblocks into familiar JSON-RPC methods.
 
 <Info>
-For background on how Flashblocks work and the node-reth component, see the [Flashblocks Overview](/base-chain/flashblocks/overview#architecture).
+For background on how Flashblocks work and the [base](https://github.com/base/base) component, see the [Flashblocks Architecture](/base-chain/flashblocks/architecture).
 </Info>
 
 ## Quick Start
@@ -33,7 +33,7 @@ NODE_TYPE=base CLIENT=reth RETH_FB_WEBSOCKET_URL="wss://mainnet.flashblocks.base
 ```
 
 <Note>
-The node-reth binary listens to the Flashblocks WebSocket stream and caches preconfirmation data. When Flashblocks-aware RPC methods are called, it returns data from this cache.
+The [base](https://github.com/base/base) binary listens to the Flashblocks WebSocket stream and caches preconfirmation data. When Flashblocks-aware RPC methods are called, it returns data from this cache.
 </Note>
 
 ---
@@ -87,6 +87,8 @@ Your Flashblocks-aware node supports all standard Ethereum JSON-RPC methods, plu
 | `eth_simulateV1` | Use `pending` tag |
 | `eth_estimateGas` | Use `pending` tag |
 | `eth_getLogs` | Use `pending` for `toBlock` |
+| `eth_subscribe` | Stream Flashblock data in real-time (Beta) |
+| `base_transactionStatus` | Check if transaction is in mempool (Beta) |
 
 For code examples, see the [App Integration guide](/base-chain/flashblocks/apps#rpc-api).
 
