@@ -10,107 +10,119 @@ For a comprehensive introduction to how Flashblocks work, see the [Flashblocks O
 
 ## Block Building
 
-### Are Flashblocks optional?
+<AccordionGroup>
+  <Accordion title="Are Flashblocks optional?">
+    All Base blocks are built by the Flashblocks builder, meaning **Flashblocks are always live**. However, apps may choose not to rely on preconfirmations and can continue using standard RPCs without any Flashblocks integration.
+  </Accordion>
 
-All Base blocks are built by the Flashblocks builder, meaning **Flashblocks are always live**. However, apps may choose not to rely on preconfirmations and can continue using standard RPCs without any Flashblocks integration.
+  <Accordion title="Is there any difference in transaction inclusion for Flashblocks vs. 2-second blocks?">
+    No significant differences—both order transactions by fee. The main difference is timing: Flashblocks occur every 200ms instead of every 2 seconds. 
+    
+    See [Block Building](/base-chain/network-information/block-building#flashblocks) for details.
+  </Accordion>
 
-### Is there any difference in transaction inclusion for Flashblocks vs. 2-second blocks?
+  <Accordion title="Can the sequencer stop publishing Flashblocks?">
+    The sequencer will not stop publishing Flashblocks unless an extreme circumstance makes running them unsafe. If this happens, preconfirmations are disabled network-wide and confirmations fall back to standard 2-second blocks. The sequencer continues operating normally.
+  </Accordion>
 
-No significant differences—both order transactions by fee. The main difference is timing: Flashblocks occur every 200ms instead of every 2 seconds. See [Block Building](/base-chain/network-information/block-building#flashblocks) for details.
+  <Accordion title="Why is my transaction having trouble getting included?">
+    Transactions with large gas limits (> ~18.75M gas, which is 1/10 of the ~187.5M block limit) may have longer inclusion times. This is because the builder allocates gas cumulatively—each Flashblock `j` can use up to `j/10` of the total block gas limit. Large transactions can be included once enough cumulative capacity exists.
 
-### Can the sequencer stop publishing Flashblocks?
+    See [Gas Allocation](/base-chain/flashblocks/overview#gas-allocation) for the full breakdown.
+  </Accordion>
 
-The sequencer will not stop publishing Flashblocks unless an extreme circumstance makes running them unsafe. If this happens, preconfirmations are disabled network-wide and confirmations fall back to standard 2-second blocks. The sequencer continues operating normally.
+  <Accordion title="How do I ensure my transaction is in the first Flashblock?">
+    There's no way to guarantee which Flashblock a transaction lands in, similar to how you can't guarantee a specific block. To improve chances of quick inclusion:
 
-### Why is my transaction having trouble getting included?
+    - Set a higher priority fee
+    - Keep gas limits below ~18.75M (1/10 of block limit) to be eligible for Flashblock 1
+  </Accordion>
 
-Transactions with large gas limits (> 14M gas) may have longer inclusion times. This is because the builder allocates gas incrementally—each Flashblock `j` can only use `j/10` of the total block gas limit. Large transactions must wait for later Flashblocks with sufficient capacity.
+  <Accordion title="How frequently do Flashblock reorgs happen?">
+    Base targets a Flashblock reorg rate of < 0.1%. While reorgs are rare, applications should implement fallback logic for critical operations. 
+    
+    Check current metrics at [base.org/stats](https://base.org/stats).
+  </Accordion>
 
-See [Gas Allocation](/base-chain/flashblocks/overview#gas-allocation) for the full breakdown.
-
-### How do I ensure my transaction is in the first Flashblock?
-
-There's no way to guarantee which Flashblock a transaction lands in, similar to how you can't guarantee a specific block. To improve chances of quick inclusion:
-
-- Set a higher priority fee
-- Keep gas limits below 14M (1/10 of block limit) to be eligible for Flashblock 1
-
-### How frequently do Flashblock reorgs happen?
-
-Base targets a Flashblock reorg rate SLO of **99.9%** (< 0.1% reorgs). While reorgs are rare, applications should implement fallback logic for critical operations. Check current metrics at [base.org/stats](https://base.org/stats).
-
-### What does it mean when a Flashblock is reorged?
-
-A reorg means a Flashblock was streamed as a preconfirmation but wasn't included in the final block. This is rare due to architectural improvements in rollup-boost that prevent tail Flashblock reorgs. Apps should handle this possibility gracefully, but occurrences are minimal.
+  <Accordion title="What does it mean when a Flashblock is reorged?">
+    A reorg means a Flashblock was streamed as a preconfirmation but wasn't included in the final block. This is rare due to architectural improvements in rollup-boost that prevent tail Flashblock reorgs. Apps should handle this possibility gracefully, but occurrences are minimal.
+  </Accordion>
+</AccordionGroup>
 
 ---
 
 ## WebSocket
 
-### Can I connect directly to the Flashblocks WebSocket stream?
+<AccordionGroup>
+  <Accordion title="Can I connect directly to the Flashblocks WebSocket stream?">
+    **No.** The raw Flashblocks WebSocket (`wss://mainnet.flashblocks.base.org/ws`) is reserved for infrastructure-to-node data syncing. Applications should not connect to it directly.
 
-**No.** The raw Flashblocks WebSocket (`wss://mainnet.flashblocks.base.org/ws`) is reserved for infrastructure-to-node data syncing. Applications should not connect to it directly.
+    Instead, query your RPC node or node provider (e.g., QuickNode, Alchemy, Infura, dRPC) for Flashblocks data via:
+    - **RPC API**: Standard JSON-RPC methods with the `pending` tag
+    - **WebSocket subscriptions**: Use `eth_subscribe` via your node provider's WebSocket endpoint
 
-Instead, query your RPC node or node provider (e.g., QuickNode, Alchemy, Infura, dRPC) for Flashblocks data via:
-- **RPC API**: Standard JSON-RPC methods with the `pending` tag
-- **WebSocket subscriptions**: Use `eth_subscribe` via your node provider's WebSocket endpoint
+    See [App Integration](/base-chain/flashblocks/apps) for implementation details.
+  </Accordion>
 
-See [App Integration](/base-chain/flashblocks/apps) for implementation details.
+  <Accordion title="Why are there 11 Flashblock indices (0-10)?">
+    Index 0 contains only system transactions and doesn't use any gas limit. Indexes 1-10 are the actual Flashblocks that pull pending transactions from the txpool.
+  </Accordion>
 
-### Why are there 11 Flashblocks?
+  <Accordion title="Why are there sometimes fewer than 10 Flashblocks?">
+    This is expected. When the previous block takes longer to build, the system compensates by allocating less time to the next block, resulting in fewer Flashblocks.
+  </Accordion>
 
-Index 0 contains only system transactions and doesn't use any gas limit. Indexes 1-10 are the actual Flashblocks that pull pending transactions from the txpool.
+  <Accordion title="What encoding format is the transaction data in?">
+    Transaction data in the [`diff.transactions`](/base-chain/flashblocks/websocket-reference#diff-object) array is Recursive Length Prefix (RLP) encoded.
+  </Accordion>
 
-### Why are there sometimes fewer than 10 Flashblocks?
+  <Accordion title="Why am I getting rate limited on the WebSocket?">
+    The public WebSocket has a maximum connection limit. For production use, we recommend:
 
-This is expected. When the previous block takes longer to build, the system compensates by allocating less time to the next block, resulting in fewer Flashblocks.
-
-### What encoding format is the transaction data in?
-
-Transaction data in the [`diff.transactions`](/base-chain/flashblocks/websocket-reference#diff-object) array is Recursive Length Prefix (RLP) encoded.
-
-### Why am I getting rate limited on the WebSocket?
-
-The public WebSocket has a maximum connection limit. For production use, we recommend:
-
-1. Running your own [Flashblocks-aware RPC node](/base-chain/node-operators/run-a-base-node#enable-flashblocks)
-2. Using a third-party node provider with Flashblocks support
+    1. Running your own [Flashblocks-aware RPC node](/base-chain/node-operators/run-a-base-node#enable-flashblocks)
+    2. Using a third-party node provider with Flashblocks support
+  </Accordion>
+</AccordionGroup>
 
 ---
 
 ## RPC
 
-### Why am I getting rate limited using mainnet-preconf.base.org?
+<AccordionGroup>
+  <Accordion title="Why am I getting rate limited using mainnet-preconf.base.org?">
+    The public endpoint has explicit rate limiting. For production use:
 
-The public endpoint has explicit rate limiting. For production use:
+    - Use a third-party node provider with Flashblocks support (Alchemy, Infura, QuickNode, dRPC)
+    - Run your own [Flashblocks-aware RPC node](/base-chain/node-operators/run-a-base-node#enable-flashblocks)
+  </Accordion>
 
-- Use a third-party node provider with Flashblocks support (Alchemy, Infura, QuickNode, dRPC)
-- Run your own [Flashblocks-aware RPC node](/base-chain/node-operators/run-a-base-node#enable-flashblocks)
+  <Accordion title="What RPC methods support Flashblocks?">
+    The following methods are Flashblocks-enabled:
 
-### What RPC methods support Flashblocks?
+    | Method | Usage |
+    |--------|-------|
+    | `eth_getBlockByNumber` | Use `pending` tag |
+    | `eth_getBalance` | Use `pending` tag |
+    | `eth_getTransactionReceipt` | Returns preconfirmed receipts |
+    | `eth_getTransactionByHash` | Use `pending` tag |
+    | `eth_getTransactionCount` | Use `pending` tag |
+    | `eth_call` | Use `pending` tag |
+    | `eth_simulateV1` | Use `pending` tag |
+    | `eth_estimateGas` | Use `pending` tag |
+    | `eth_getLogs` | Use `pending` for `toBlock` |
+    | `eth_subscribe` | Stream Flashblock data in real-time (Beta) |
+    | `base_transactionStatus` | Check if transaction is in mempool (Beta) |
 
-The following methods are Flashblocks-enabled:
-
-| Method | Usage |
-|--------|-------|
-| `eth_getBlockByNumber` | Use `pending` tag |
-| `eth_getBalance` | Use `pending` tag |
-| `eth_getTransactionReceipt` | Returns preconfirmed receipts |
-| `eth_getTransactionByHash` | Use `pending` tag |
-| `eth_getTransactionCount` | Use `pending` tag |
-| `eth_call` | Use `pending` tag |
-| `eth_simulateV1` | Use `pending` tag |
-| `eth_estimateGas` | Use `pending` tag |
-| `eth_getLogs` | Use `pending` for `toBlock` |
-| `eth_subscribe` | Stream Flashblock data in real-time (Beta) |
-| `base_transactionStatus` | Check if transaction is in mempool (Beta) |
-
-See [App Integration](/base-chain/flashblocks/apps#rpc-api-reference) for full examples.
+    See [App Integration](/base-chain/flashblocks/apps#rpc-api-reference) for full examples.
+  </Accordion>
+</AccordionGroup>
 
 ---
 
 ## Node Setup
 
-### How do I set up a Flashblocks-aware RPC node?
-
-Use the Reth binary from the [Base node repository](https://github.com/base/node/tree/main/reth). See the [Enable Flashblocks guide](/base-chain/node-operators/run-a-base-node#enable-flashblocks) for complete setup instructions.
+<AccordionGroup>
+  <Accordion title="How do I set up a Flashblocks-aware RPC node?">
+    Use the Reth binary from the [Base node repository](https://github.com/base/node/tree/main/reth). See the [Enable Flashblocks guide](/base-chain/node-operators/run-a-base-node#enable-flashblocks) for complete setup instructions.
+  </Accordion>
+</AccordionGroup>
