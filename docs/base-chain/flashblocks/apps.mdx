@@ -257,10 +257,6 @@ Flashblocks-aware nodes support specialized `eth_subscribe` methods for real-tim
 <Note>Requires [base/base](https://github.com/base/base) minimum client version v0.3.1</Note>
 
 <Warning>
-**Connect to your RPC node or node provider's WebSocket**, not the raw Flashblocks stream (`wss://mainnet.flashblocks.base.org/ws`). The raw stream is reserved for infrastructure-to-node syncing.
-</Warning>
-
-<Warning>
 Each subscription returns **one item per WebSocket message** and emits events every 200ms. If your application performs heavy processing on each event, consider throttling or debouncing to avoid performance issues.
 </Warning>
 
@@ -268,7 +264,7 @@ Each subscription returns **one item per WebSocket message** and emits events ev
 
 | Subscription | Description | Response |
 |--------------|-------------|----------|
-| `newFlashblockTransactions` | Stream transactions as they're included | One transaction per message |
+| `newFlashblockTransactions` | Stream [transactions](/base-chain/flashblocks/websocket-reference#diff-object) as they're included | One transaction per message |
 | `pendingLogs` | Stream [logs](/base-chain/flashblocks/websocket-reference#log-object) matching a filter | One log per message |
 | `newFlashblocks` | Stream [Flashblock](/base-chain/flashblocks/websocket-reference#flashblock-object) state updates | Full Flashblock per message |
 
