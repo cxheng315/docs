@@ -1,40 +1,79 @@
 ---
-title: App Integration
+title: Flashblocks Integration
 sidebarTitle: Apps
-description: Integrate Flashblocks into your app for 200ms transaction confirmations using RPC APIs and popular libraries like Wagmi and Viem.
+description: Integrate Flashblocks into your app for 200ms transaction confirmations using RPC APIs and popular libraries like Ethers, Wagmi and Viem.
 ---
 
-<Info>
-New to Flashblocks? Start with the [Flashblocks Overview](/base-chain/flashblocks/overview) to understand the architecture and how transactions flow through the system.
-</Info>
+Get **200ms transaction confirmations** on Base—10x faster than the standard 2-second block time.
 
-## Integration Methods
+## Endpoints
 
-There are two ways to integrate with Flashblocks:
-
-1. **RPC API** — Query Flashblocks-aware endpoints using familiar JSON-RPC methods with the `pending` tag
-2. **WebSocket API** — Stream real-time Flashblock data for lowest latency (see [Node Providers](/base-chain/flashblocks/node-providers#websocket-api))
+| Network | RPC URL | Status |
+|---------|---------|--------|
+| **Mainnet** | `https://mainnet-preconf.base.org` | ✅ Live |
+| **Sepolia** | `https://sepolia-preconf.base.org` | ✅ Live |
 
 <Tip>
-For most apps, the RPC API is recommended. WebSocket is best for traders and infrastructure providers who need the absolute lowest latency.
+**Already using a node provider?** Alchemy, Infura, QuickNode, and dRPC all support Flashblocks—just use the `pending` tag with your existing endpoint.
 </Tip>
 
+<Note>
+Public endpoints are rate-limited. For production, use a [node provider with Flashblocks support](/base-chain/tools/node-providers) or [run your own node](/base-chain/node-operators/run-a-base-node#enable-flashblocks).
+</Note>
+
+---
+
+## Quick Start
+
+Use the `pending` tag with any supported RPC method:
+
+```bash
+curl https://mainnet-preconf.base.org -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["pending",false],"id":1}'
+```
+
+That's it—your app now receives 200ms preconfirmations instead of waiting 2 seconds.
+
+---
+
+## Use Cases
+
+Flashblocks is ideal for:
+
+- **Decentralized exchanges** — Near-instant trade confirmations
+- **Onchain games** — Real-time state updates for responsive gameplay
+- **Trading bots** — Faster feedback loops for automated strategies
+- **Live dashboards** — Real-time balance and transaction monitoring
+- **Any app requiring instant feedback** — Improved UX across the board
+
+---
+
+## Supported RPC Methods
+
+| Method | Description |
+|--------|-------------|
+| `eth_getBlockByNumber` | With `pending`, returns the most recent Flashblock |
+| `eth_getBalance` | With `pending`, reflects balances from the latest Flashblock |
+| `eth_getTransactionReceipt` | Returns receipts for preconfirmed transactions |
+| `eth_getTransactionByHash` | Returns preconfirmed transaction details |
+| `eth_getTransactionCount` | With `pending`, returns the updated nonce from Flashblocks |
+| `eth_call` | With `pending`, executes against the latest Flashblock state |
+| `eth_estimateGas` | With `pending`, estimates gas against the latest Flashblock |
+| `eth_getLogs` | With `pending`, returns logs from the latest Flashblock |
+| `eth_simulateV1` | Simulates transactions against the latest Flashblock state |
+| `eth_subscribe` | Stream Flashblock data in real-time (Beta) |
+| `base_transactionStatus` | Check if a transaction is in the mempool (Beta) |
+
 <Warning>
-**Frontend developers using `eth_subscribe`**: With Flashblocks, subscriptions emit events every 200ms instead of every 2 seconds. If your UI performs heavy rendering on each event, consider throttling or debouncing updates to avoid jitter.
+**WebSocket Note:** Do not connect directly to `wss://mainnet.flashblocks.base.org/ws`. This endpoint is reserved for infrastructure-to-node data syncing. For real-time streaming, use `eth_subscribe` via your RPC node or node provider's WebSocket.
 </Warning>
 
-### RPC API
+---
 
-Base offers the following public Flashblocks aware RPC endpoints. These are rate limited and may not be suitable for production use - we recommend using a node provider that runs Flashblocks integrated nodes.
-Major node providers such as Alchemy, Infura, QuickNode and dRPC have Flashblocks-aware RPCs that can be leveraged
+## RPC API Reference
 
-   | Network            | URL                              |
-   | :----------------- | :------------------------------- |
-   | Mainnet            | https://mainnet-preconf.base.org |
-   | Sepolia            | https://sepolia-preconf.base.org |
-
-
-The following RPC methods can return Flashblocks specific data. All standard Ethereum JSON-RPC methods are still supported as usual.
+Detailed documentation for each Flashblocks-enabled RPC method.
 
 #### eth_getBlockByNumber
 
@@ -211,6 +250,142 @@ curl https://sepolia-preconf.base.org -X POST -H "Content-Type: application/json
 }
 ```
 
+#### eth_subscribe <Badge color="orange" shape="rounded">Beta</Badge>
+
+Flashblocks-aware nodes support specialized `eth_subscribe` methods for real-time streaming of Flashblock data. 
+
+<Note>Requires [base/base](https://github.com/base/base) minimum client version v0.3.1</Note>
+
+<Warning>
+**Connect to your RPC node or node provider's WebSocket**, not the raw Flashblocks stream (`wss://mainnet.flashblocks.base.org/ws`). The raw stream is reserved for infrastructure-to-node syncing.
+</Warning>
+
+<Warning>
+Each subscription returns **one item per WebSocket message** and emits events every 200ms. If your application performs heavy processing on each event, consider throttling or debouncing to avoid performance issues.
+</Warning>
+
+**Subscription Types:**
+
+| Subscription | Description | Response |
+|--------------|-------------|----------|
+| `newFlashblockTransactions` | Stream transactions as they're included | One transaction per message |
+| `pendingLogs` | Stream [logs](/base-chain/flashblocks/websocket-reference#log-object) matching a filter | One log per message |
+| `newFlashblocks` | Stream [Flashblock](/base-chain/flashblocks/websocket-reference#flashblock-object) state updates | Full Flashblock per message |
+
+<Info>
+For detailed response schema documentation (Flashblock, Diff, Metadata, Receipt, Log objects), see the [WebSocket Reference](/base-chain/flashblocks/websocket-reference#schema).
+</Info>
+
+---
+
+**newFlashblockTransactions**
+
+```json
+{"jsonrpc":"2.0", "id": 1, "method": "eth_subscribe", "params": ["newFlashblockTransactions"]}
+```
+
+Optional `full` parameter for enriched transaction and log data:
+```json
+{"jsonrpc":"2.0", "id": 1, "method": "eth_subscribe", "params": ["newFlashblockTransactions", {"full": true}]}
+```
+
+---
+
+**pendingLogs**
+
+Filter logs by address and topics:
+```json
+{"jsonrpc":"2.0", "id": 1, "method": "eth_subscribe", "params": ["pendingLogs", {"address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"]}]}
+```
+
+---
+
+**newFlashblocks**
+
+```json
+{"jsonrpc":"2.0", "id": 1, "method": "eth_subscribe", "params": ["newFlashblocks"]}
+```
+
+---
+
+**JavaScript Example:**
+
+```javascript
+import WebSocket from 'ws';
+import { createHash } from 'crypto';
+
+// `ws` should be a WebSocket RPC URL, not from the Flashblock WebSocket Stream
+const ws = new WebSocket('wss://my-node.node-provider.com/ws');
+
+ws.on('open', () => {
+  console.log('Connected to Flashblocks WebSocket');
+  // Subscribe to new Flashblocks
+  ws.send(JSON.stringify({
+    jsonrpc: "2.0",
+    method: "eth_subscribe",
+    params: ["newFlashblockTransactions"],
+    id: 1
+  }));
+});
+
+ws.on('message', (data: WebSocket.Data) => {
+  try {
+    if (Buffer.isBuffer(data)) {
+      if (data.length >= 37) {
+        const txHash = '0x' + data.slice(5, 37).toString('hex');
+        console.log(txHash);
+      }
+    } else {
+      const response = JSON.parse(data.toString());
+      if (response.id === 1) {
+        console.log('✓ Subscribed');
+      }
+    }
+  } catch (error) {
+    // Handle error
+  }
+});
+
+ws.on('error', (error) => {
+  console.error('WebSocket error:', error);
+});
+
+ws.on('close', () => {
+  console.log('WebSocket connection closed');
+});
+```
+
+#### base_transactionStatus <Badge color="orange" shape="rounded">Beta</Badge>
+
+Check whether a transaction is present in the mempool:
+
+<Note>Requires [base/base](https://github.com/base/base) minimum client version v0.3.0</Note>
+```
+curl https://sepolia-preconf.base.org -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"base_transactionStatus","params":["0x..."],"id":1}'
+```
+
+**Transaction Known**
+```
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "status": "Known"
+  }
+}
+```
+
+**Transaction Unknown**
+```
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "status": "Unknown"
+  }
+}
+```
+
 ### Libraries
 
 You will need to use a Flashblocks-aware RPC endpoint to use Flashblocks with the following libraries:
@@ -312,6 +487,38 @@ const confirmTime = new Date();
 
 console.log(`Transaction included at: ${confirmTime.toISOString()}`);
 console.log(`Time difference: ${confirmTime - submissionTime}ms`);
+```
+
+#### [Ethers](https://github.com/ethers-io/ethers.js)
+
+```jsx
+  const providerA = new ethers.JsonRpcProvider(
+    "https://sepolia-preconf.base.org"
+  );
+
+  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, providerA);
+
+  try {
+    // Create a simple transaction (sending 0.001 ETH to a random address)
+    const tx = {
+      to: "<SOME ADDRESS>",
+      value: ethers.parseEther("0.0000001"),
+    };
+
+    // Submit transaction
+    const submissionTime = new Date();
+    const transaction = await wallet.sendTransaction(tx);
+
+    console.log(`Submitting transaction at: ${submissionTime.toISOString()}`);
+    console.log(`Transaction hash: ${transaction.hash}`);
+
+    await transaction.wait(0); // Make sure to set the confirmation count to 0
+
+    console.log("Transaction confirmed");
+    const confirmationTime = new Date();
+    console.log(`Transaction confirmed at: ${confirmationTime.toISOString()}`);
+    console.log(`Time difference: ${confirmationTime - submissionTime}ms`);
+  }
 ```
 
 You should see the confirmation time significantly lower than the standard RPC endpoint.

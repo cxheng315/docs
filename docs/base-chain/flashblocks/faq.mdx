@@ -37,7 +37,7 @@ There's no way to guarantee which Flashblock a transaction lands in, similar to 
 
 ### How frequently do Flashblock reorgs happen?
 
-Flashblock reorgs on Base Mainnet are effectively **zero**, with only rare exceptions. Base maintains a reorg rate below **0.01%**. Check current metrics at [base.org/stats](https://base.org/stats).
+Base targets a Flashblock reorg rate SLO of **99.9%** (< 0.1% reorgs). While reorgs are rare, applications should implement fallback logic for critical operations. Check current metrics at [base.org/stats](https://base.org/stats).
 
 ### What does it mean when a Flashblock is reorged?
 
@@ -46,6 +46,16 @@ A reorg means a Flashblock was streamed as a preconfirmation but wasn't included
 ---
 
 ## WebSocket
+
+### Can I connect directly to the Flashblocks WebSocket stream?
+
+**No.** The raw Flashblocks WebSocket (`wss://mainnet.flashblocks.base.org/ws`) is reserved for infrastructure-to-node data syncing. Applications should not connect to it directly.
+
+Instead, query your RPC node or node provider (e.g., QuickNode, Alchemy, Infura, dRPC) for Flashblocks data via:
+- **RPC API**: Standard JSON-RPC methods with the `pending` tag
+- **WebSocket subscriptions**: Use `eth_subscribe` via your node provider's WebSocket endpoint
+
+See [App Integration](/base-chain/flashblocks/apps) for implementation details.
 
 ### Why are there 11 Flashblocks?
 
@@ -57,13 +67,13 @@ This is expected. When the previous block takes longer to build, the system comp
 
 ### What encoding format is the transaction data in?
 
-Transaction data is RLP encoded.
+Transaction data in the [`diff.transactions`](/base-chain/flashblocks/websocket-reference#diff-object) array is Recursive Length Prefix (RLP) encoded.
 
 ### Why am I getting rate limited on the WebSocket?
 
 The public WebSocket has a maximum connection limit. For production use, we recommend:
 
-1. Running your own [Flashblocks-aware RPC node](/base-chain/flashblocks/node-providers)
+1. Running your own [Flashblocks-aware RPC node](/base-chain/node-operators/run-a-base-node#enable-flashblocks)
 2. Using a third-party node provider with Flashblocks support
 
 ---
@@ -75,7 +85,7 @@ The public WebSocket has a maximum connection limit. For production use, we reco
 The public endpoint has explicit rate limiting. For production use:
 
 - Use a third-party node provider with Flashblocks support (Alchemy, Infura, QuickNode, dRPC)
-- Run your own [Flashblocks-aware RPC node](/base-chain/flashblocks/node-providers)
+- Run your own [Flashblocks-aware RPC node](/base-chain/node-operators/run-a-base-node#enable-flashblocks)
 
 ### What RPC methods support Flashblocks?
 
@@ -92,8 +102,10 @@ The following methods are Flashblocks-enabled:
 | `eth_simulateV1` | Use `pending` tag |
 | `eth_estimateGas` | Use `pending` tag |
 | `eth_getLogs` | Use `pending` for `toBlock` |
+| `eth_subscribe` | Stream Flashblock data in real-time (Beta) |
+| `base_transactionStatus` | Check if transaction is in mempool (Beta) |
 
-See [App Integration](/base-chain/flashblocks/apps#rpc-api) for full examples.
+See [App Integration](/base-chain/flashblocks/apps#rpc-api-reference) for full examples.
 
 ---
 
@@ -101,4 +113,4 @@ See [App Integration](/base-chain/flashblocks/apps#rpc-api) for full examples.
 
 ### How do I set up a Flashblocks-aware RPC node?
 
-Use the Reth binary from the [Base node repository](https://github.com/base/node/tree/main/reth). See the [Node Providers guide](/base-chain/flashblocks/node-providers) for complete setup instructions.
+Use the Reth binary from the [Base node repository](https://github.com/base/node/tree/main/reth). See the [Enable Flashblocks guide](/base-chain/node-operators/run-a-base-node#enable-flashblocks) for complete setup instructions.
