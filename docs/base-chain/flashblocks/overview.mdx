@@ -97,9 +97,9 @@ The gas budget is **cumulative**, not per-Flashblock. Each Flashblock unlocks an
 </Tip>
 
 **Implications for large transactions:**
-- Transactions requiring > 1/10 of block gas (~18.75M) must wait for later Flashblocks
-- Large transactions may have longer inclusion times as they wait for sufficient capacity
-- If your app creates large transactions, monitor for changes in inclusion latency
+- Transactions exceeding 1/10 of block gas (~18.75M) can be included once enough cumulative capacity exists. For example, a 20M gas transaction can be included in the 2nd Flashblock if the 1st Flashblock leaves at least 1.25M gas unused (since 2/10 = 37.5M cumulative, minus 20M needed = 17.5M already consumed is acceptable).
+- There is a separate **max gas limit per transaction** on Base, which is distinct from Flashblock capacity.
+- Large transactions may experience slightly longer inclusion times while waiting for sufficient cumulative capacity.
 
 ---
 
