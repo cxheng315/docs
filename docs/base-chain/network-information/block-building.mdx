@@ -28,7 +28,7 @@ Blocks are built using [op-rbuilder](https://github.com/flashbots/op-rbuilder) w
 For a comprehensive technical deep dive into Flashblocks architecture, see the [Flashblocks Overview](/base-chain/flashblocks/overview).
 </Info>
 
-*There are two key differences from vanilla ordering:*
+*There are three key differences from vanilla ordering:*
 
 1. **Timing** — Flashblocks are built every 200ms, each ordering a portion of the block. Once built and broadcast, transaction ordering is locked. Later-arriving transactions with higher priority fees cannot be included in earlier Flashblocks.
 
@@ -45,6 +45,12 @@ For a comprehensive technical deep dive into Flashblocks architecture, see the [
    <Warning>
    Transactions exceeding 14M gas cannot fit in Flashblock 1 and must wait for later Flashblocks. Monitor inclusion latency if your app creates large transactions.
    </Warning>
+
+3. **Dynamic Mempool** — The builder continuously accepts new transactions while building each Flashblock. This minimizes inclusion latency but means transactions are ordered by fee *at the time of selection*, not globally across all transactions that arrive during the 200ms window. A late-arriving high-fee transaction may appear after an already-committed lower-fee transaction.
+
+   <Note>
+   This is a deliberate tradeoff: faster inclusion at the cost of occasionally "breaking" expected priority gas auction (PGA) ordering within a Flashblock. See the [Flashblocks FAQ](/base-chain/flashblocks/faq) for more details.
+   </Note>
 
 ### Per-Transaction Gas Maximum
 
