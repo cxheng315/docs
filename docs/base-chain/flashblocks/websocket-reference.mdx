@@ -69,7 +69,7 @@ Block differences/updates for this Flashblock. See [Diff Object](#diff-object).
 </ParamField>
 
 <ParamField path="metadata" type="Metadata">
-Additional data including balance updates and transaction receipts. See [Metadata Object](#metadata-object).
+Additional data including balance updates and transaction receipts. **This object is not stable and may change without notice.** See [Metadata Object](#metadata-object).
 </ParamField>
 </Card>
 
@@ -203,7 +203,11 @@ Example:
 
 ### Metadata Object
 
-Contains additional block metadata, including balance updates and transaction receipts. This is where the most useful data for trading applications lives.
+<Warning>
+**The `metadata` object is not stable.** Fields may be added, modified, or removed without prior notice. Do not build production dependencies on the structure or presence of any metadata fields. If you require stable data, use the [`diff`](#diff-object) object or query finalized block data via RPC.
+</Warning>
+
+Contains additional block metadata, including balance updates and transaction receipts.
 
 <Card>
 <ParamField path="block_number" type="number">
