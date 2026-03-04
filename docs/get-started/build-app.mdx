@@ -45,15 +45,15 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
           appName: 'My Base App',
           preference: 'all',
         }),
-        walletConnect({
-          projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID!,
-        }),
+        ...(process.env.NEXT_PUBLIC_WC_PROJECT_ID
+          ? [walletConnect({ projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID })]
+          : []),
       ],
       storage: createStorage({ storage: cookieStorage }),
       ssr: true,
       transports: {
         [base.id]: http(),
-        [baseSepolia.id]: http(),
+        [baseSepolia.id]: http('https://sepolia.base.org'),
       },
     })
 
@@ -66,6 +66,10 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
 
     <Note>
     `ssr: true` combined with `cookieStorage` prevents Next.js hydration mismatches. Setting `preference: 'all'` on Coinbase Wallet lets users choose between a smart wallet and the browser extension — you will detect which one they picked in step 7.
+    </Note>
+
+    <Note>
+    WalletConnect requires a project ID from [cloud.walletconnect.com](https://cloud.walletconnect.com). The conditional connector pattern lets the app run without it during development. Set `NEXT_PUBLIC_WC_PROJECT_ID` in your `.env.local` when you are ready to enable WalletConnect.
     </Note>
 
     ```typescript src/app/providers.tsx lines expandable
@@ -159,6 +163,10 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
     ```
 
+    <Note>
+    If `https://sepolia.base.org` is unreachable, use an alternative public endpoint such as `https://base-sepolia-rpc.publicnode.com`. For production apps, use a dedicated RPC provider.
+    </Note>
+
     Load the variable and import your deployer key securely.
 
     ```bash Terminal
@@ -169,6 +177,16 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     <Warning>
     Never share or commit your private key. `cast wallet import` stores it in `~/.foundry/keystores`, which is not tracked by git.
     </Warning>
+
+    <Note>
+    `cast wallet import --interactive` requires a TTY (interactive terminal). In scripted or CI environments, pass the key directly instead:
+
+    ```bash Terminal
+    forge create ./src/Counter.sol:Counter \
+      --rpc-url $BASE_SEPOLIA_RPC_URL \
+      --private-key $DEPLOYER_PRIVATE_KEY
+    ```
+    </Note>
 
     Deploy the contract.
 
@@ -219,6 +237,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     'use client'
 
     import { useReadContract } from 'wagmi'
+    import { baseSepolia } from 'wagmi/chains'
     import { COUNTER_ADDRESS, counterAbi } from '@/config/counter'
 
     export function CounterDisplay() {
@@ -226,14 +245,19 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
         address: COUNTER_ADDRESS,
         abi: counterAbi,
         functionName: 'number',
+        chainId: baseSepolia.id,
       })
 
-      if (isLoading) return <p>Loading...</p>
-      if (isError) return <p>Failed to read contract</p>
+      if (isLoading && count === undefined) return <p>Loading...</p>
+      if (isError && count === undefined) return <p>Failed to read contract</p>
 
       return <p className="text-5xl font-bold">{count?.toString()}</p>
     }
     ```
+
+    <Note>
+    `isError` can be `true` while `data` still holds a valid cached value from a previous successful fetch. Always gate error renders on `data === undefined` so stale data is preferred over an error message.
+    </Note>
   </Step>
 
   <Step title="Write to a contract">
@@ -242,13 +266,29 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     ```typescript src/components/IncrementButton.tsx lines expandable
     'use client'
 
-    import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+    import {
+      useWriteContract,
+      useWaitForTransactionReceipt,
+      useChainId,
+      useSwitchChain,
+    } from 'wagmi'
+    import { baseSepolia } from 'wagmi/chains'
     import { COUNTER_ADDRESS, counterAbi } from '@/config/counter'
 
     export function IncrementButton() {
+      const chainId = useChainId()
+      const { switchChain, isPending: isSwitching } = useSwitchChain()
       const { data: hash, isPending, writeContract } = useWriteContract()
       const { isLoading: isConfirming, isSuccess } =
         useWaitForTransactionReceipt({ hash })
+
+      if (chainId !== baseSepolia.id) {
+        return (
+          <button onClick={() => switchChain({ chainId: baseSepolia.id })}>
+            {isSwitching ? 'Switching...' : 'Switch to Base Sepolia'}
+          </button>
+        )
+      }
 
       return (
         <div>
@@ -258,6 +298,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
                 address: COUNTER_ADDRESS,
                 abi: counterAbi,
                 functionName: 'increment',
+                chainId: baseSepolia.id,
               })
             }
             disabled={isPending || isConfirming}
@@ -279,44 +320,65 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     }
     ```
 
+    <Note>
+    The first chain in the `chains` array is the default for all hook calls that do not specify a `chainId`. Always pass `chainId` explicitly when your contract is deployed on a chain that is not first in the array.
+    </Note>
+
     Surface three states to the user: waiting for wallet signature, waiting for on-chain confirmation, and success.
+
+    <Warning>
+    Without `useSwitchChain`, calling `writeContract` while the wallet is on the wrong network causes wagmi to attempt a background chain switch. If the user misses or dismisses the wallet popup, the button stays at "Confirm in Wallet..." indefinitely with no error and no recovery path.
+    </Warning>
   </Step>
 
   <Step title="Detect wallet capabilities">
     Smart wallets support batch transactions via EIP-5792. EOAs do not. Detect support before attempting to batch.
 
     ```typescript src/hooks/useWalletCapabilities.ts lines expandable
-    import { useCapabilities, useChainId } from 'wagmi'
+    import { useCapabilities } from 'wagmi'
+    import { baseSepolia } from 'wagmi/chains'
     import { useMemo } from 'react'
 
     export function useWalletCapabilities() {
-      const chainId = useChainId()
       const { data: capabilities } = useCapabilities()
 
       const supportsBatching = useMemo(() => {
-        const atomic = capabilities?.[chainId]?.atomic
+        const atomic = capabilities?.[baseSepolia.id]?.atomic
         return atomic?.status === 'ready' || atomic?.status === 'supported'
-      }, [capabilities, chainId])
+      }, [capabilities])
 
       const supportsPaymaster = useMemo(() => {
-        return capabilities?.[chainId]?.paymasterService?.supported === true
-      }, [capabilities, chainId])
+        return capabilities?.[baseSepolia.id]?.paymasterService?.supported === true
+      }, [capabilities])
 
       return { supportsBatching, supportsPaymaster }
     }
     ```
 
+    <Note>
+    `useChainId()` returns the wallet's current chain, not your deployment chain. A MetaMask user on Ethereum mainnet would get incorrect capability results. Always check capabilities against the chain where your contract is deployed.
+    </Note>
+
     See [Batch Transactions with Wagmi](/base-account/framework-integrations/wagmi/batch-transactions) for a deeper look at EIP-5792 capability detection.
   </Step>
 
   <Step title="Batch transactions with fallback">
-    Use `useWriteContracts` for smart wallets and `useWriteContract` for EOAs. The component detects which path to take at render time.
+    Use `useSendCalls` for smart wallets and `useWriteContract` for EOAs. The component detects which path to take at render time.
 
     ```typescript src/components/BatchIncrement.tsx lines expandable
     'use client'
 
-    import { useWriteContracts } from 'wagmi/experimental'
-    import { useWriteContract, useWaitForTransactionReceipt, useAccount } from 'wagmi'
+    import {
+      useSendCalls,
+      useWaitForCallsStatus,
+      useWriteContract,
+      useWaitForTransactionReceipt,
+      useAccount,
+      useChainId,
+      useSwitchChain,
+    } from 'wagmi'
+    import { encodeFunctionData } from 'viem'
+    import { baseSepolia } from 'wagmi/chains'
     import { useWalletCapabilities } from '@/hooks/useWalletCapabilities'
     import { COUNTER_ADDRESS, counterAbi } from '@/config/counter'
 
@@ -330,28 +392,64 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     }
 
     function BatchFlow() {
-      const { writeContracts, isPending } = useWriteContracts()
+      const chainId = useChainId()
+      const { switchChain, isPending: isSwitching } = useSwitchChain()
+      const { data, sendCalls, isPending } = useSendCalls()
+      const { isLoading: isConfirming, isSuccess } = useWaitForCallsStatus({
+        id: data?.id,
+      })
+
+      if (chainId !== baseSepolia.id) {
+        return (
+          <button onClick={() => switchChain({ chainId: baseSepolia.id })}>
+            {isSwitching ? 'Switching...' : 'Switch to Base Sepolia'}
+          </button>
+        )
+      }
+
+      const incrementData = encodeFunctionData({
+        abi: counterAbi,
+        functionName: 'increment',
+      })
 
       return (
-        <button
-          onClick={() =>
-            writeContracts({
-              contracts: [
-                { address: COUNTER_ADDRESS, abi: counterAbi, functionName: 'increment' },
-                { address: COUNTER_ADDRESS, abi: counterAbi, functionName: 'increment' },
-              ],
-            })
-          }
-          disabled={isPending}
-        >
-          {isPending ? 'Confirm in Wallet...' : 'Increment x2 (Batch)'}
-        </button>
+        <div>
+          <button
+            onClick={() =>
+              sendCalls({
+                calls: [
+                  { to: COUNTER_ADDRESS, data: incrementData },
+                  { to: COUNTER_ADDRESS, data: incrementData },
+                ],
+                chainId: baseSepolia.id,
+              })
+            }
+            disabled={isPending || isConfirming}
+          >
+            {isPending
+              ? 'Confirm in Wallet...'
+              : isConfirming
+              ? 'Confirming...'
+              : 'Increment x2 (Batch)'}
+          </button>
+          {isSuccess && <p>Batch confirmed!</p>}
+        </div>
       )
     }
 
     function SequentialFlow() {
+      const chainId = useChainId()
+      const { switchChain, isPending: isSwitching } = useSwitchChain()
       const { data: hash, isPending, writeContract } = useWriteContract()
       const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash })
+
+      if (chainId !== baseSepolia.id) {
+        return (
+          <button onClick={() => switchChain({ chainId: baseSepolia.id })}>
+            {isSwitching ? 'Switching...' : 'Switch to Base Sepolia'}
+          </button>
+        )
+      }
 
       return (
         <button
@@ -360,6 +458,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
               address: COUNTER_ADDRESS,
               abi: counterAbi,
               functionName: 'increment',
+              chainId: baseSepolia.id,
             })
           }
           disabled={isPending || isConfirming}
@@ -371,7 +470,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     ```
 
     <Warning>
-    Never call `useWriteContracts` without first confirming `supportsBatching` is `true`. Calling it against an EOA will throw.
+    Never call `useSendCalls` without first confirming `supportsBatching` is `true`. Calling it against an EOA will throw.
     </Warning>
   </Step>
 
@@ -407,6 +506,5 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
 
 - **Sponsor gas** — use the `paymasterService` capability with `useSendCalls` to cover your users' transaction fees. See [Sponsor Gas](/base-account/improve-ux/sponsor-gas/paymasters).
 - **Batch read calls** — reduce RPC round trips by batching reads via viem's `multicall`.
-- **Switch chains** — use `useSwitchChain` to prompt users who are connected to the wrong network.
 - **Optimistic updates** — update the UI before confirmation using TanStack Query's `onMutate` callback.
 - **Wagmi setup reference** — review the full [Wagmi setup guide](/base-account/framework-integrations/wagmi/setup) for additional configuration options.
