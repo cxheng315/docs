@@ -35,7 +35,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     ```typescript src/config/wagmi.ts lines expandable
     import { http, createConfig, createStorage, cookieStorage } from 'wagmi'
     import { base, baseSepolia } from 'wagmi/chains'
-    import { coinbaseWallet, injected, walletConnect } from 'wagmi/connectors'
+    import { coinbaseWallet, injected } from 'wagmi/connectors'
 
     export const config = createConfig({
       chains: [base, baseSepolia],
@@ -45,9 +45,6 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
           appName: 'My Base App',
           preference: 'all',
         }),
-        ...(process.env.NEXT_PUBLIC_WC_PROJECT_ID
-          ? [walletConnect({ projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID })]
-          : []),
       ],
       storage: createStorage({ storage: cookieStorage }),
       ssr: true,
@@ -66,10 +63,6 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
 
     <Note>
     `ssr: true` combined with `cookieStorage` prevents Next.js hydration mismatches. Setting `preference: 'all'` on Coinbase Wallet lets users choose between a smart wallet and the browser extension — you will detect which one they picked in step 7.
-    </Note>
-
-    <Note>
-    WalletConnect requires a project ID from [cloud.walletconnect.com](https://cloud.walletconnect.com). The conditional connector pattern lets the app run without it during development. Set `NEXT_PUBLIC_WC_PROJECT_ID` in your `.env.local` when you are ready to enable WalletConnect.
     </Note>
 
     ```typescript src/app/providers.tsx lines expandable
