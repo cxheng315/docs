@@ -23,27 +23,26 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     Create a new Next.js app and install the required dependencies.
 
     ```bash Terminal
-    npx create-next-app@latest my-base-app --typescript --tailwind --app --src-dir
+    npx create-next-app@latest my-base-app --typescript --tailwind --app
     cd my-base-app
-    npm install wagmi viem @tanstack/react-query
+    npm install wagmi viem @tanstack/react-query @base-org/account
     ```
   </Step>
 
   <Step title="Configure Wagmi for Base">
     Create the Wagmi config with Base and Base Sepolia chains, then wrap your app in the required providers.
 
-    ```typescript src/config/wagmi.ts lines expandable
+    ```typescript config/wagmi.ts lines expandable
     import { http, createConfig, createStorage, cookieStorage } from 'wagmi'
     import { base, baseSepolia } from 'wagmi/chains'
-    import { coinbaseWallet, injected } from 'wagmi/connectors'
+    import { baseAccount, injected } from 'wagmi/connectors'
 
     export const config = createConfig({
       chains: [base, baseSepolia],
       connectors: [
         injected(),
-        coinbaseWallet({
+        baseAccount({
           appName: 'My Base App',
-          preference: 'all',
         }),
       ],
       storage: createStorage({ storage: cookieStorage }),
@@ -62,20 +61,20 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     ```
 
     <Note>
-    `ssr: true` combined with `cookieStorage` prevents Next.js hydration mismatches. Setting `preference: 'all'` on Coinbase Wallet lets users choose between a smart wallet and the browser extension — you will detect which one they picked in step 7.
+    `ssr: true` combined with `cookieStorage` prevents Next.js hydration mismatches. The `baseAccount` connector connects users via the [Base Account SDK](/base-account/overview/what-is-base-account) smart wallet — you will detect its capabilities in step 7. The `injected` connector handles browser extension wallets like MetaMask.
     </Note>
 
-    ```typescript src/app/providers.tsx lines expandable
+    ```typescript app/providers.tsx lines expandable
     'use client'
 
     import { WagmiProvider } from 'wagmi'
     import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-    import { useState, type ReactNode } from 'react'
+    import { type ReactNode } from 'react'
     import { config } from '@/config/wagmi'
 
-    export function Providers({ children }: { children: ReactNode }) {
-      const [queryClient] = useState(() => new QueryClient())
+    const queryClient = new QueryClient()
 
+    export function Providers({ children }: { children: ReactNode }) {
       return (
         <WagmiProvider config={config}>
           <QueryClientProvider client={queryClient}>
@@ -92,7 +91,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
   <Step title="Connect wallets">
     Create a component that handles all four wallet connection states.
 
-    ```typescript src/components/ConnectWallet.tsx lines expandable
+    ```typescript components/ConnectWallet.tsx lines expandable
     'use client'
 
     import { useAccount, useConnect, useDisconnect } from 'wagmi'
@@ -201,7 +200,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
   <Step title="Read contract data">
     Define your contract address and ABI, then read the current counter value.
 
-    ```typescript src/config/counter.ts lines expandable
+    ```typescript config/counter.ts lines expandable
     export const COUNTER_ADDRESS = '0x...' as const
 
     export const counterAbi = [
@@ -226,7 +225,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
     `as const` is required. Without it, wagmi cannot infer function names, argument types, or return types from the ABI.
     </Note>
 
-    ```typescript src/components/CounterDisplay.tsx lines expandable
+    ```typescript components/CounterDisplay.tsx lines expandable
     'use client'
 
     import { useReadContract } from 'wagmi'
@@ -256,7 +255,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
   <Step title="Write to a contract">
     Send a transaction and surface all three confirmation states to the user.
 
-    ```typescript src/components/IncrementButton.tsx lines expandable
+    ```typescript components/IncrementButton.tsx lines expandable
     'use client'
 
     import {
@@ -327,7 +326,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
   <Step title="Detect wallet capabilities">
     Smart wallets support batch transactions via EIP-5792. EOAs do not. Detect support before attempting to batch.
 
-    ```typescript src/hooks/useWalletCapabilities.ts lines expandable
+    ```typescript hooks/useWalletCapabilities.ts lines expandable
     import { useCapabilities } from 'wagmi'
     import { baseSepolia } from 'wagmi/chains'
     import { useMemo } from 'react'
@@ -358,7 +357,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
   <Step title="Batch transactions with fallback">
     Use `useSendCalls` for smart wallets and `useWriteContract` for EOAs. The component detects which path to take at render time.
 
-    ```typescript src/components/BatchIncrement.tsx lines expandable
+    ```typescript components/BatchIncrement.tsx lines expandable
     'use client'
 
     import {
@@ -470,7 +469,7 @@ Base is a fast, low-cost Ethereum L2 built to bring the next billion users oncha
   <Step title="Assemble the page">
     Compose the components into a single page.
 
-    ```typescript src/app/page.tsx lines expandable
+    ```typescript app/page.tsx lines expandable
     import { ConnectWallet } from '@/components/ConnectWallet'
     import { CounterDisplay } from '@/components/CounterDisplay'
     import { BatchIncrement } from '@/components/BatchIncrement'
